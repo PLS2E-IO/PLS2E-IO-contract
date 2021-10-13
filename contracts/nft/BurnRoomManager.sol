@@ -11,6 +11,7 @@ import '../interfaces/IP2EERC1155.sol';
 import '../core/SafeOwnable.sol';
 import 'hardhat/console.sol';
 import '../core/Random.sol';
+import '../interfaces/IInvite.sol';
 
 contract BurnRoomManager is SafeOwnable, Random {
     using SafeMath for uint256;
@@ -25,6 +26,19 @@ contract BurnRoomManager is SafeOwnable, Random {
 
     uint256 constant MAX_END_INDEX = 1000000;
     uint256 constant VALUE_FEE_BASE = 10000;
+    uint256 constant MAX_INVITE_HEIGHT = 3;
+    function getInvitePercent(uint height) internal pure returns (uint) {
+        if (height == 1) {
+            return 2000;
+        } else if (height == 2) {
+            return 1000;
+        } else if (height == 3) {
+            return 500;
+        } else {
+            return 0;
+        }
+    }
+    uint256 constant PERCENT_BASE = 10000;
 
     struct RoomInfo {
         IERC20 token;
@@ -71,6 +85,7 @@ contract BurnRoomManager is SafeOwnable, Random {
     mapping(bytes32 => RandomInfo) public randomInfo;
     mapping(uint256 => mapping(address => uint256)) public blindBoxNum;
 
+    IInvite immutable public invite;
     IP2EERC1155 public nftToken;
     address public receiver;
 
@@ -92,7 +107,9 @@ contract BurnRoomManager is SafeOwnable, Random {
         receiver = _receiver;
     }
 
-    constructor(IP2EERC1155 _nftToken, address _receiver, address _linkAccessor) Random(_linkAccessor) {
+    constructor(IInvite _invite, IP2EERC1155 _nftToken, address _receiver, address _linkAccessor) Random(_linkAccessor) {
+        require(address(_invite) != address(0), "invite address is zero");
+        invite = _invite;
         require(address(_nftToken) != address(0), "nftToken is zero");
         nftToken = _nftToken;
         require(_receiver != address(0), "receiver is zero");
@@ -173,7 +190,18 @@ contract BurnRoomManager is SafeOwnable, Random {
         roomReward[_rid][_loop] = roomReward[_rid][_loop].add(payAmount);
         (uint256 totalBalance, ) = nftToken.totalBalance(_to, nftIDs[_rid][_loop]);
         require(totalBalance.add(blindBoxNum[_rid][_to]) <= rangeInfo[_rid].length, "token alrady full");
-        SafeERC20.safeTransferFrom(room.token, msg.sender, address(this), payAmount);
+
+        address[] memory inviters = invite.inviterTree(_to, MAX_INVITE_HEIGHT);
+        uint[] memory amounts = new uint[](inviters.length);
+        uint totalInviterAmount = 0;
+        for (uint i = 0; i < inviters.length; i ++) {
+            uint percent = getInvitePercent(i);
+            amounts[i] = payAmount.mul(percent).div(PERCENT_BASE); 
+            totalInviterAmount = totalInviterAmount.add(amounts[i]);
+        }
+        SafeERC20.safeTransferFrom(room.token, msg.sender, address(invite), totalInviterAmount);
+        uint remainAmount = invite.sendReward(_to, room.token, amounts);
+        SafeERC20.safeTransferFrom(room.token, msg.sender, address(this), payAmount.sub(totalInviterAmount.sub(remainAmount)));
         if (payFee > 0) {
             SafeERC20.safeTransferFrom(room.token, msg.sender, receiver, payFee);
         }

@@ -11,6 +11,7 @@ import '../interfaces/IP2EERC1155.sol';
 import '../core/SafeOwnable.sol';
 import 'hardhat/console.sol';
 import '../core/Random.sol';
+import '../interfaces/IInvite.sol';
 
 contract GameRoomManager is SafeOwnable, Random {
     using SafeMath for uint256;
@@ -29,6 +30,19 @@ contract GameRoomManager is SafeOwnable, Random {
 
     uint256 constant MAX_END_INDEX = 1000000;
     uint256 constant VALUE_FEE_BASE = 10000;
+    uint256 constant MAX_INVITE_HEIGHT = 3;
+    function getInvitePercent(uint height) internal pure returns (uint) {
+        if (height == 1) {
+            return 2000;
+        } else if (height == 2) {
+            return 1000;
+        } else if (height == 3) {
+            return 500;
+        } else {
+            return 0;
+        }
+    }
+    uint256 constant PERCENT_BASE = 10000;
 
     struct RoomInfo {
         IERC20 token;
@@ -65,6 +79,7 @@ contract GameRoomManager is SafeOwnable, Random {
     mapping(uint256 => mapping(uint256 => uint256)) public loopResult;
     mapping(uint256 => mapping(address => uint256)) public blindBoxNum;
 
+    IInvite public invite;
     IP2EERC1155 public nftToken;
     address public receiver;
     address public rewardReceiver;
@@ -136,7 +151,9 @@ contract GameRoomManager is SafeOwnable, Random {
         emit BuyBlindBox(_rid, address(this), _loop, 1, 0, 0, requestId);
     }
 
-    constructor(IP2EERC1155 _nftToken, address _receiver, address _rewardReceiver, address _linkAccessor) Random(_linkAccessor) {
+    constructor(IInvite _invite, IP2EERC1155 _nftToken, address _receiver, address _rewardReceiver, address _linkAccessor) Random(_linkAccessor) {
+        require(address(_invite) != address(0), "invite address is zero");
+        invite = _invite;
         require(address(_nftToken) != address(0), "nftToken is zero");
         nftToken = _nftToken;
         require(_receiver != address(0), "receiver is zero");
@@ -202,7 +219,21 @@ contract GameRoomManager is SafeOwnable, Random {
             loop: room.currentLoop
         });
         blindBoxNum[_rid][_to] = blindBoxNum[_rid][_to].add(_num);
-        SafeERC20.safeTransferFrom(room.token, msg.sender, receiver, payAmount.add(payFee));
+
+        address[] memory inviters = invite.inviterTree(_to, MAX_INVITE_HEIGHT);
+        uint[] memory amounts = new uint[](inviters.length);
+        uint totalInviterAmount = 0;
+        for (uint i = 0; i < inviters.length; i ++) {
+            uint percent = getInvitePercent(i);
+            amounts[i] = payAmount.mul(percent).div(PERCENT_BASE); 
+            totalInviterAmount = totalInviterAmount.add(amounts[i]);
+        }
+        SafeERC20.safeTransferFrom(room.token, msg.sender, address(invite), totalInviterAmount);
+        uint remainAmount = invite.sendReward(_to, room.token, amounts);
+        SafeERC20.safeTransferFrom(room.token, msg.sender, address(this), payAmount.sub(totalInviterAmount.sub(remainAmount)));
+        if (payFee > 0) {
+            SafeERC20.safeTransferFrom(room.token, msg.sender, receiver, payFee);
+        }
         emit BuyBlindBox(_rid, _to, room.currentLoop, _num, payAmount, payFee, requestId);
     }
 
