@@ -46,9 +46,10 @@ contract P2ESwapFee is SafeOwnable {
         for (uint i = 0; i < supportTokenList.length; i ++) {
             require(supportTokenList[i] != _token, "token already exist");
         }
-        require(!supportToken[_token], "token already supported");
+        //require(!supportToken[_token], "token already supported");
+        supportTokenList.push(_token);
         supportToken[_token] = true;
-        NewSupportToken(_token);
+        emit NewSupportToken(_token);
     }
 
     function delSupportToken(address _token) external onlyOwner {
@@ -62,7 +63,7 @@ contract P2ESwapFee is SafeOwnable {
         delete supportToken[_token];
         supportTokenList[currentId] = supportTokenList[supportTokenList.length - 1];
         supportTokenList.pop();
-        DelSupportToken(_token);
+        emit DelSupportToken(_token);
     }
 
     function addReceiver(address _receiver, uint _percent) external onlyOwner {
@@ -72,6 +73,7 @@ contract P2ESwapFee is SafeOwnable {
             require(receivers[i] != _receiver, "receiver already exist");
         }
         require(totalPercent <= FEE_BASE.sub(_percent), "illegal percent");
+        totalPercent = totalPercent.add(_percent);
         receivers.push(_receiver);
         receiverFees[_receiver] = _percent;
         emit NewReceiver(_receiver, _percent);
@@ -98,6 +100,7 @@ contract P2ESwapFee is SafeOwnable {
     }
 
     function setDestroyPercent(uint _percent) external onlyOwner {
+        require(_percent <= FEE_BASE, "illegam percent");
         emit NewDestroyPercent(destroyPercent, _percent);
         destroyPercent = _percent;
     }
