@@ -56,7 +56,7 @@ contract ILO is SafeOwnable {
         require(block.timestamp < startSeconds || block.timestamp > endSeconds + FINISH_WAIT, "ILO in processing");
         _;
     }
-
+    /*
     function setStartSeconds(uint256 _startSeconds) external onlyOwner notProcessing {
         emit NewStartSeconds(startSeconds, _startSeconds);
         startSeconds = _startSeconds;
@@ -66,7 +66,7 @@ contract ILO is SafeOwnable {
         emit NewEndSeconds(endSeconds, _endSeconds);
         endSeconds = _endSeconds;
     }
-
+    */
     constructor(
         IERC20 _rewardToken,
         uint256 _startSeconds,

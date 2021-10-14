@@ -27,8 +27,8 @@ contract P2ERouter is IP2ERouter, SafeOwnable {
         assert(msg.sender == WETH); // only accept ETH via fallback from the WETH contract
     }
 
-    function setSwapMining(address _swapMininng) public onlyOwner {
-        swapMining = _swapMininng;
+    function setSwapMining(address _swapMining) public onlyOwner {
+        swapMining = _swapMining;
     }
 
     constructor(address _factory, address _WETH) {

@@ -47,6 +47,11 @@ contract MasterChef is SafeOwnable, ReentrancyGuard {
     event NewMultiplier(uint oldMultiplier, uint newMultiplier);
     event NewPool(uint pid, address lpToken, uint allocPoint, uint totalPoint);
 
+    modifier validatePoolByPid(uint256 _pid) {
+        require (_pid < poolInfo.length, "Pool does not exist");
+        _;
+    }
+
     constructor(
         P2EToken _rewardToken,
         uint256 _rewardPerBlock,
@@ -59,12 +64,18 @@ contract MasterChef is SafeOwnable, ReentrancyGuard {
         BONUS_MULTIPLIER = 1;
     }
 
-    function updateMultiplier(uint256 multiplierNumber) external onlyOwner {
+    function updateMultiplier(uint256 multiplierNumber, bool withUpdate) external onlyOwner {
+        if (withUpdate) {
+            massUpdatePools();
+        }
         emit NewMultiplier(BONUS_MULTIPLIER, multiplierNumber);
         BONUS_MULTIPLIER = multiplierNumber;
     }
 
-    function updateP2EPerBlock(uint256 _rewardPerBlock) external onlyOwner {
+    function updateP2EPerBlock(uint256 _rewardPerBlock, bool _withUpdate) external onlyOwner {
+        if (_withUpdate) {
+            massUpdatePools();
+        }
         emit NewRewardPerBlock(rewardPerBlock, _rewardPerBlock);
         rewardPerBlock = _rewardPerBlock;
     }
@@ -92,7 +103,7 @@ contract MasterChef is SafeOwnable, ReentrancyGuard {
         emit NewPool(poolInfo.length - 1, address(_lpToken), _allocPoint, totalAllocPoint);
     }
 
-    function set(uint256 _pid, uint256 _allocPoint, bool _withUpdate) external onlyOwner {
+    function set(uint256 _pid, uint256 _allocPoint, bool _withUpdate) external onlyOwner validatePoolByPid(_pid) {
         if (_withUpdate) {
             massUpdatePools();
         }
@@ -108,7 +119,7 @@ contract MasterChef is SafeOwnable, ReentrancyGuard {
         return _to.sub(_from).mul(BONUS_MULTIPLIER);
     }
 
-    function pendingP2E(uint256 _pid, address _user) external view returns (uint256) {
+    function pendingP2E(uint256 _pid, address _user) external validatePoolByPid(_pid) view returns (uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         uint256 accP2EPerShare = pool.accP2EPerShare;
@@ -128,8 +139,7 @@ contract MasterChef is SafeOwnable, ReentrancyGuard {
         }
     }
 
-    function updatePool(uint256 _pid) public {
-        require(_pid < poolInfo.length, "illegal pid");
+    function updatePool(uint256 _pid) public validatePoolByPid(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         if (block.number <= pool.lastRewardBlock) {
             return;
@@ -146,8 +156,7 @@ contract MasterChef is SafeOwnable, ReentrancyGuard {
         pool.lastRewardBlock = block.number;
     }
 
-    function deposit(uint256 _pid, uint256 _amount) external nonReentrant {
-        require(_pid < poolInfo.length, "illegal pid");
+    function deposit(uint256 _pid, uint256 _amount) external nonReentrant validatePoolByPid(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
@@ -165,8 +174,7 @@ contract MasterChef is SafeOwnable, ReentrancyGuard {
         emit Deposit(msg.sender, _pid, _amount);
     }
 
-    function withdraw(uint256 _pid, uint256 _amount) external nonReentrant {
-        require(_pid < poolInfo.length, "illegal pid");
+    function withdraw(uint256 _pid, uint256 _amount) external nonReentrant validatePoolByPid(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
@@ -183,8 +191,7 @@ contract MasterChef is SafeOwnable, ReentrancyGuard {
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
-    function emergencyWithdraw(uint256 _pid) external nonReentrant {
-        require(_pid < poolInfo.length, "illegal pid");
+    function emergencyWithdraw(uint256 _pid) external nonReentrant validatePoolByPid(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         uint amount = user.amount;
