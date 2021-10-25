@@ -31,6 +31,7 @@ contract TokenLocker is ERC20 {
         uint256 alreadyReleasedAmount;  //the amount the token already released for the reciever
     }
     mapping(address => ReleaseInfo) public receivers;
+    mapping(address => uint) public userPending;
 
     constructor(
         string memory _name, string memory _symbol, IERC20 _token, uint256 _firstLockSeconds, uint256 _lockPeriod, uint256 _lockPeriodNum
@@ -42,7 +43,14 @@ contract TokenLocker is ERC20 {
         LOCK_PERIOD_NUM = _lockPeriodNum;
     }
 
+    uint public constant MAX_CLAIM_NUM = 100;
+
     function addReceiver(address _receiver, uint256 _amount) external {
+        for (uint i = 0; i < MAX_CLAIM_NUM; i ++) {
+            if (claimInternal(_receiver) == 0) {
+                break;
+            }
+        }
         require(_receiver != address(0), "receiver address is zero");
         require(_amount > 0, "release amount is zero");
         totalLockAmount = totalLockAmount.add(_amount);
@@ -56,6 +64,37 @@ contract TokenLocker is ERC20 {
         token.safeTransferFrom(msg.sender, address(this), _amount);
         _mint(_receiver, _amount);
         emit NewReceiver(_receiver, _amount, totalReleaseAmount, receiver.lastReleaseAt);
+    }
+
+    function pending(address _receiver) public view returns (uint256, uint256, uint256) {
+        ReleaseInfo storage receiver = receivers[_receiver];
+        if (_receiver != receiver.receiver) {
+            return (0, 0, 0);
+        }
+        uint current = block.timestamp;
+        uint lastClaim = receiver.lastReleaseAt;
+        bool firstUnlock = receiver.firstUnlock;
+        uint pendingAmount = 0;
+        while (true) {
+            if (firstUnlock) {
+                lastClaim = lastClaim + FIRST_LOCK_SECONDS;
+            } else {
+                lastClaim = lastClaim + LOCK_PERIOD;
+            }
+            if (current > lastClaim) {
+                if (receiver.totalReleaseAmount.sub(pendingAmount) > receiver.alreadyReleasedAmount) {
+                    pendingAmount = pendingAmount + receiver.totalReleaseAmount.div(LOCK_PERIOD_NUM);
+                } else {
+                    pendingAmount = pendingAmount + receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount);
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        pendingAmount = pendingAmount + userPending[_receiver];
+        uint remain = receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount).sub(pendingAmount);
+        return (lastClaim, pendingAmount, remain);
     }
 
     //response1: the timestamp for next release
@@ -81,10 +120,11 @@ contract TokenLocker is ERC20 {
         }
     }
 
-    function claim(address _receiver) external {
+    function claimInternal(address _receiver) internal returns(uint) {
         (uint nextReleaseSeconds, uint nextReleaseAmount, , ) = getReleaseInfo(_receiver);
-        require(block.timestamp >= nextReleaseSeconds, "not the right time");
-        require(nextReleaseAmount > 0, "already released all");
+        if (block.timestamp < nextReleaseSeconds || nextReleaseAmount <= 0) {
+            return 0;
+        }
         ReleaseInfo storage receiver = receivers[_receiver];
         if (!receiver.firstUnlock) {
             receiver.firstUnlock = true; 
@@ -92,9 +132,22 @@ contract TokenLocker is ERC20 {
         receiver.lastReleaseAt = nextReleaseSeconds;
         receiver.alreadyReleasedAmount = receiver.alreadyReleasedAmount.add(nextReleaseAmount);
         totalLockAmount = totalLockAmount.sub(nextReleaseAmount);
-        token.safeTransfer(receiver.receiver, nextReleaseAmount);
-        _burn(_receiver, nextReleaseAmount);
+        userPending[_receiver] = nextReleaseAmount;
         (uint nextNextReleaseSeconds, uint nextNextReleaseAmount, , ) = getReleaseInfo(_receiver);
         emit ReleaseToken(_receiver, nextReleaseAmount, nextNextReleaseSeconds, nextNextReleaseAmount);
+        return totalLockAmount;
+    }
+
+    function claim(address _receiver) external {
+        for (uint i = 0; i < MAX_CLAIM_NUM; i ++) {
+            if (claimInternal(_receiver) == 0) {
+                break;
+            }
+        }
+        if (userPending[_receiver] > 0) {
+            token.safeTransfer(_receiver, userPending[_receiver]);
+            userPending[_receiver] = 0;
+            _burn(_receiver, userPending[_receiver]);
+        }
     }
 }

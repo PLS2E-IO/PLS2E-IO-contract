@@ -7,15 +7,18 @@ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/math/SafeMath.sol';
 import '@openzeppelin/contracts/utils/Strings.sol';
 import '@openzeppelin/contracts/utils/Context.sol';
+import '../libraries/TransferHelper.sol';
 import '../interfaces/IP2EERC1155.sol';
+import '../interfaces/IInvite.sol';
+import '../interfaces/IWETH.sol';
 import '../core/SafeOwnable.sol';
 import 'hardhat/console.sol';
 import '../core/Random.sol';
-import '../interfaces/IInvite.sol';
 
 contract BurnRoomManager is SafeOwnable, Random {
     using SafeMath for uint256;
     using Strings for uint256;
+    using SafeERC20 for IERC20;
 
     event NewBurnRoom(uint rid, IERC20 token, uint totalLoop, uint totalNum);
     event RoomRange(uint rid, uint nftType, uint startIndex, uint endIndex);
@@ -23,16 +26,24 @@ contract BurnRoomManager is SafeOwnable, Random {
     event OpenBlindBox(uint rid, uint loop, address to, uint rangeIndex, uint num, bytes32 requestId);
     event Claim(uint rid, uint loop, address to, uint reward);
     event NewReceiver(address oldReceiver, address newReceiver);
+    event NewFeeReceiver(address oldReceiver, address newReceiver);
+    event NewRewardReceiver(address oldReceiver, address newReceiver);
+    event FeeWithdraw(IERC20 token, uint amount);
+    event LoopBegin(uint rid, uint loop);
+    event LoopFinish(uint rid, uint loop);
+    event Winner(uint rid, uint loop, address to);
+    event NFTCreated(IP2EERC1155 nftToken, uint rid, uint loop, uint[] ids, uint[] types, uint[] values);
 
     uint256 constant MAX_END_INDEX = 1000000;
     uint256 constant VALUE_FEE_BASE = 10000;
+    address immutable WETH;
     uint256 constant MAX_INVITE_HEIGHT = 3;
     function getInvitePercent(uint height) internal pure returns (uint) {
-        if (height == 1) {
+        if (height == 0) {
             return 2000;
-        } else if (height == 2) {
+        } else if (height == 1) {
             return 1000;
-        } else if (height == 3) {
+        } else if (height == 2) {
             return 500;
         } else {
             return 0;
@@ -87,7 +98,42 @@ contract BurnRoomManager is SafeOwnable, Random {
 
     IInvite immutable public invite;
     IP2EERC1155 public nftToken;
-    address public receiver;
+
+    address public feeReceiver;
+    address public rewardReceiver;
+    mapping(IERC20 => uint) public totalFeeAmount;
+
+    function setFeeReceiver(address _feeReceiver) external onlyOwner {
+        require(_feeReceiver != address(0), "tokenReceiver is zero");
+        emit NewFeeReceiver(feeReceiver, _feeReceiver);
+        feeReceiver = _feeReceiver;
+    }
+
+    function setRewardReceiver(address _rewardReceiver) external onlyOwner {
+        require(_rewardReceiver != address(0), "tokenReceiver is zero");
+        emit NewRewardReceiver(_rewardReceiver, rewardReceiver);
+        rewardReceiver = _rewardReceiver;
+    }
+
+    function tokenTransfer(IERC20 _token, address _to, uint _amount) internal returns (uint) {
+        if (address(_token) == WETH) {
+            IWETH(address(_token)).withdraw(_amount);
+            TransferHelper.safeTransferETH(_to, _amount);
+        } else {
+            _token.safeTransfer(_to, _amount);
+        }
+        return _amount;
+    }
+
+    function feeWithdraw(IERC20 _token, uint _amount) external onlyOwner {
+        if (_amount > totalFeeAmount[_token]) {
+            _amount = totalFeeAmount[_token];
+        }
+        totalFeeAmount[_token] = totalFeeAmount[_token].sub(_amount);
+        require(feeReceiver != address(0), "feeReceiver is zero");
+        tokenTransfer(_token, feeReceiver, _amount);
+        emit FeeWithdraw(_token, _amount);
+    }
 
     function roomInfoLength() external view returns (uint256) {
         return roomInfo.length;
@@ -101,20 +147,19 @@ contract BurnRoomManager is SafeOwnable, Random {
         return nftIDs[_rid][_loop];
     }
 
-    function setReceiver(address _receiver) external onlyOwner {
-        require(_receiver != address(0), "receiver is zero");
-        emit NewReceiver(receiver, _receiver);
-        receiver = _receiver;
-    }
-
-    constructor(IInvite _invite, IP2EERC1155 _nftToken, address _receiver, address _linkAccessor) Random(_linkAccessor) {
+    constructor(address _WETH, IInvite _invite, IP2EERC1155 _nftToken, address _feeReceiver, address _rewardReceiver, address _linkAccessor) Random(_linkAccessor) {
+        require(_WETH != address(0), "WETH is zero");
+        WETH = _WETH;
         require(address(_invite) != address(0), "invite address is zero");
         invite = _invite;
         require(address(_nftToken) != address(0), "nftToken is zero");
         nftToken = _nftToken;
-        require(_receiver != address(0), "receiver is zero");
-        receiver = _receiver;
-        emit NewReceiver(address(0), receiver);
+        require(_feeReceiver != address(0), "feeReceiver is zero");
+        feeReceiver = _feeReceiver;
+        emit NewFeeReceiver(address(0), feeReceiver);
+        require(_rewardReceiver != address(0), "rewardReceiver is zero");
+        rewardReceiver = _rewardReceiver;
+        emit NewRewardReceiver(address(0), rewardReceiver);
     }
 
     function beginLoop(uint _rid) public {
@@ -128,9 +173,12 @@ contract BurnRoomManager is SafeOwnable, Random {
         if (room.currentLoop > 0 && room.openNum != room.totalNum) {
             return;
         }
+        emit LoopFinish(_rid, room.currentLoop);
         room.currentLoop = room.currentLoop + 1;
         uint256[] memory nftValues = new uint256[](nftTypes[_rid].length);
+        emit LoopBegin(_rid, room.currentLoop);
         nftIDs[_rid][room.currentLoop] = nftToken.createBatchDefault(nftTypes[_rid], nftValues);
+        emit NFTCreated(nftToken, _rid, room.currentLoop, nftIDs[_rid][room.currentLoop], nftTypes[_rid], nftValues);
         room.openNum = 0;
     }
 
@@ -168,7 +216,19 @@ contract BurnRoomManager is SafeOwnable, Random {
         beginLoop(rid);
     }
 
-    function buyBlindBox(uint256 _rid, uint256 _loop, uint256 _num, address _to) external {
+    function doRandom() internal returns (bytes32){
+        uint256 seed = uint256(keccak256(abi.encodePacked(block.timestamp, block.difficulty, tx.origin, block.coinbase, block.number)));
+        bytes32 requestId = _requestRandom(seed);
+        require(randomInfo[requestId].to == address(0), "random already exists");
+        return requestId;
+    }
+
+    function tokenNotFull(uint _rid, uint _loop, address _user) internal view returns(bool) {
+        (uint256 totalBalance, ) = nftToken.totalBalance(_user, nftIDs[_rid][_loop]);
+        return totalBalance.add(blindBoxNum[_rid][_user]) > rangeInfo[_rid].length;
+    }
+
+    function buyBlindBox(uint256 _rid, uint256 _loop, uint256 _num, address _to) external payable {
         require(_rid < roomInfo.length, "illegal rid"); 
         RoomInfo storage room = roomInfo[_rid];
         require(_loop > 0 && _loop == room.currentLoop, "loop illegal");
@@ -176,21 +236,6 @@ contract BurnRoomManager is SafeOwnable, Random {
         require(_num <= room.maxOpenNum, "illegal num");
         uint payAmount = room.value.mul(_num);
         uint payFee = payAmount.mul(room.valueFee).div(VALUE_FEE_BASE);
-        uint256 seed = uint256(keccak256(abi.encodePacked(block.timestamp, block.difficulty, tx.origin, block.coinbase, block.number)));
-        bytes32 requestId = _requestRandom(seed);
-        require(randomInfo[requestId].to == address(0), "random already exists");
-        randomInfo[requestId] = RandomInfo({
-            to: _to,
-            rid: _rid,
-            num: _num,
-            loop: _loop
-        });
-        blindBoxNum[_rid][_to] = blindBoxNum[_rid][_to].add(_num);
-        room.openNum = room.openNum + _num;
-        roomReward[_rid][_loop] = roomReward[_rid][_loop].add(payAmount);
-        (uint256 totalBalance, ) = nftToken.totalBalance(_to, nftIDs[_rid][_loop]);
-        require(totalBalance.add(blindBoxNum[_rid][_to]) <= rangeInfo[_rid].length, "token alrady full");
-
         address[] memory inviters = invite.inviterTree(_to, MAX_INVITE_HEIGHT);
         uint[] memory amounts = new uint[](inviters.length);
         uint totalInviterAmount = 0;
@@ -199,12 +244,30 @@ contract BurnRoomManager is SafeOwnable, Random {
             amounts[i] = payAmount.mul(percent).div(PERCENT_BASE); 
             totalInviterAmount = totalInviterAmount.add(amounts[i]);
         }
-        SafeERC20.safeTransferFrom(room.token, msg.sender, address(invite), totalInviterAmount);
-        uint remainAmount = invite.sendReward(_to, room.token, amounts);
-        SafeERC20.safeTransferFrom(room.token, msg.sender, address(this), payAmount.sub(totalInviterAmount.sub(remainAmount)));
-        if (payFee > 0) {
-            SafeERC20.safeTransferFrom(room.token, msg.sender, receiver, payFee);
+        if (address(room.token) == WETH) {
+            require(msg.value == payAmount.add(payFee), "illegal ETH amount");
+            IWETH(WETH).deposit{value: payAmount.add(payFee)}();
+        } else {
+            SafeERC20.safeTransferFrom(room.token, msg.sender, address(this), payAmount.add(payFee));
         }
+        room.token.safeTransfer(address(invite), totalInviterAmount);
+        uint remainAmount = invite.sendReward(_to, room.token, amounts);
+        payAmount = payAmount.sub(totalInviterAmount.sub(remainAmount));
+        roomReward[_rid][_loop] = roomReward[_rid][_loop].add(payAmount);
+        totalFeeAmount[room.token] = totalFeeAmount[room.token].add(payFee);
+        bytes32 requestId = doRandom();
+        randomInfo[requestId] = RandomInfo({
+            to: _to,
+            rid: _rid,
+            num: _num,
+            loop: _loop
+        });
+
+        blindBoxNum[_rid][_to] = blindBoxNum[_rid][_to].add(_num);
+        room.openNum = room.openNum + _num;
+
+        require(tokenNotFull(_rid, _loop, _to), "token alrady full");
+
         beginLoop(_rid);
         emit BuyBlindBox(_rid, _loop, _to, _num, payAmount, payFee, requestId);
     }
@@ -280,7 +343,7 @@ contract BurnRoomManager is SafeOwnable, Random {
         }
         nftToken.burnBatch(_to, nftIDs[_rid][_loop], balances);
 
-        SafeERC20.safeTransfer(room.token, _to, reward);
+        tokenTransfer(room.token, _to, reward);
         emit Claim(_rid, _loop, _to, reward);
     }
 
@@ -292,7 +355,7 @@ contract BurnRoomManager is SafeOwnable, Random {
         require(winerNum[_rid][_loop] == 0 && roomReward[_rid][_loop] > 0, "already have winner");
         uint amount = roomReward[_rid][_loop];
         delete winerNum[_rid][_loop];
-        SafeERC20.safeTransfer(room.token, receiver, amount); 
+        tokenTransfer(room.token, rewardReceiver, amount);
     }
 
     function userRecord(uint _rid, address user) external view returns (bool[] memory){

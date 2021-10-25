@@ -5,6 +5,7 @@ pragma solidity 0.7.6;
 import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/access/Ownable.sol';
+import '../token/TokenLocker.sol';
 import '../core/SafeOwnable.sol';
 import 'hardhat/console.sol';
 
@@ -30,6 +31,7 @@ contract ILO is SafeOwnable {
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event Claim(address indexed user, uint256 indexed pid, uint256 amount);
+    event NewTokenLocker(TokenLocker oldTokenLocker, TokenLocker newTokenLocker);
 
 
     PoolInfo[] public poolInfo;
@@ -41,6 +43,7 @@ contract ILO is SafeOwnable {
     uint256 public startSeconds;
     uint256 public endSeconds;
     uint256 constant public FINISH_WAIT = 7 days;
+    TokenLocker public tokenLocker;
 
     modifier notBegin() {
         require(block.timestamp < startSeconds, "ILO already begin");
@@ -55,6 +58,12 @@ contract ILO is SafeOwnable {
     modifier notProcessing() {
         require(block.timestamp < startSeconds || block.timestamp > endSeconds + FINISH_WAIT, "ILO in processing");
         _;
+    }
+
+    function setTokenLocker(TokenLocker _tokenLocker) external onlyOwner {
+        //require(_tokenLocker != address(0), "token locker address is zero"); 
+        emit NewTokenLocker(tokenLocker, _tokenLocker);
+        tokenLocker = _tokenLocker;
     }
     /*
     function setStartSeconds(uint256 _startSeconds) external onlyOwner notProcessing {
@@ -153,7 +162,12 @@ contract ILO is SafeOwnable {
         UserInfo storage user = userInfo[_pid][msg.sender];
         uint256 pendingAmount = pending(_pid, msg.sender);
         if (pendingAmount > 0) {
-            safeRewardTransfer(msg.sender, pendingAmount);
+            if (address(tokenLocker) == address(0)) {
+                safeRewardTransfer(msg.sender, pendingAmount);
+            } else {
+                rewardToken.approve(address(tokenLocker), pendingAmount);
+                tokenLocker.addReceiver(msg.sender, pendingAmount);
+            }
             emit Claim(msg.sender, _pid, pendingAmount);
         }
         if (user.amount > 0) {

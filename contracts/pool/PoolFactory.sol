@@ -9,6 +9,12 @@ import './SmartChefInitializable.sol';
 contract PoolFactory is SafeOwnable {
     event NewSmartChefContract(address indexed smartChef);
 
+    address[] public allPools;
+
+    function poolLength() external view returns (uint) {
+        return allPools.length;
+    }
+
     constructor() {
     }
 
@@ -42,7 +48,7 @@ contract PoolFactory is SafeOwnable {
             _poolLimitPerUser,
             _admin
         );
-
+        allPools.push(smartChefAddress);
         emit NewSmartChefContract(smartChefAddress);
     }
 }

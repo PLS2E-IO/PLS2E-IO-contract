@@ -32,11 +32,11 @@ contract GameRoomManager is SafeOwnable, Random {
     uint256 constant VALUE_FEE_BASE = 10000;
     uint256 constant MAX_INVITE_HEIGHT = 3;
     function getInvitePercent(uint height) internal pure returns (uint) {
-        if (height == 1) {
+        if (height == 0) {
             return 2000;
-        } else if (height == 2) {
+        } else if (height == 1) {
             return 1000;
-        } else if (height == 3) {
+        } else if (height == 2) {
             return 500;
         } else {
             return 0;
@@ -209,6 +209,7 @@ contract GameRoomManager is SafeOwnable, Random {
         require(block.timestamp >= room.loopBeginAt && block.timestamp <= room.loopFinishAt, "room not begin or already finish");
         uint payAmount = room.value.mul(_num);
         uint payFee = payAmount.mul(room.valueFee).div(VALUE_FEE_BASE);
+
         uint256 seed = uint256(keccak256(abi.encodePacked(block.timestamp, block.difficulty, tx.origin, block.coinbase, block.number)));
         bytes32 requestId = _requestRandom(seed);
         require(randomInfo[requestId].to == address(0), "random already exists");
@@ -229,8 +230,9 @@ contract GameRoomManager is SafeOwnable, Random {
             totalInviterAmount = totalInviterAmount.add(amounts[i]);
         }
         SafeERC20.safeTransferFrom(room.token, msg.sender, address(invite), totalInviterAmount);
-        uint remainAmount = invite.sendReward(_to, room.token, amounts);
-        SafeERC20.safeTransferFrom(room.token, msg.sender, address(this), payAmount.sub(totalInviterAmount.sub(remainAmount)));
+        //uint remainAmount = invite.sendReward(_to, room.token, amounts);
+        invite.sendReward(_to, room.token, amounts);
+        SafeERC20.safeTransferFrom(room.token, msg.sender, address(this), payAmount.sub(totalInviterAmount));
         if (payFee > 0) {
             SafeERC20.safeTransferFrom(room.token, msg.sender, receiver, payFee);
         }

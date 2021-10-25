@@ -6,6 +6,7 @@ import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/math/SafeMath.sol';
+import '../token/TokenLocker.sol';
 import '../core/SafeOwnable.sol';
 import "../token/P2EToken.sol";
 
@@ -39,6 +40,7 @@ contract MasterChef is SafeOwnable, ReentrancyGuard {
     uint256 public totalAllocPoint = 0;
     // The block number when CAKE mining starts.
     uint256 public startBlock;
+    TokenLocker public tokenLocker;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
@@ -46,10 +48,17 @@ contract MasterChef is SafeOwnable, ReentrancyGuard {
     event NewRewardPerBlock(uint oldReward, uint newReward);
     event NewMultiplier(uint oldMultiplier, uint newMultiplier);
     event NewPool(uint pid, address lpToken, uint allocPoint, uint totalPoint);
+    event NewTokenLocker(TokenLocker oldTokenLocker, TokenLocker newTokenLocker);
 
     modifier validatePoolByPid(uint256 _pid) {
         require (_pid < poolInfo.length, "Pool does not exist");
         _;
+    }
+
+    function setTokenLocker(TokenLocker _tokenLocker) external onlyOwner {
+        //require(_tokenLocker != address(0), "token locker address is zero"); 
+        emit NewTokenLocker(tokenLocker, _tokenLocker);
+        tokenLocker = _tokenLocker;
     }
 
     constructor(
@@ -163,7 +172,12 @@ contract MasterChef is SafeOwnable, ReentrancyGuard {
         if (user.amount > 0) {
             uint256 pending = user.amount.mul(pool.accP2EPerShare).div(1e12).sub(user.rewardDebt);
             if(pending > 0) {
-                safeP2ETransfer(msg.sender, pending);
+                if (address(tokenLocker) == address(0)) {
+                    safeP2ETransfer(msg.sender, pending);
+                } else {
+                    rewardToken.approve(address(tokenLocker), pending);
+                    tokenLocker.addReceiver(msg.sender, pending);
+                }
             }
         }
         if (_amount > 0) {
@@ -181,7 +195,12 @@ contract MasterChef is SafeOwnable, ReentrancyGuard {
         updatePool(_pid);
         uint256 pending = user.amount.mul(pool.accP2EPerShare).div(1e12).sub(user.rewardDebt);
         if(pending > 0) {
-            safeP2ETransfer(msg.sender, pending);
+            if (address(tokenLocker) == address(0)) {
+                safeP2ETransfer(msg.sender, pending);
+            } else {
+                rewardToken.approve(address(tokenLocker), pending);
+                tokenLocker.addReceiver(msg.sender, pending);
+            }
         }
         if(_amount > 0) {
             user.amount = user.amount.sub(_amount);

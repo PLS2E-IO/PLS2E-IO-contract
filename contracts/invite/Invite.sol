@@ -46,6 +46,9 @@ contract Invite {
         address lastUser = _user;
         for (uint i = 0; i < _height; i ++) {
             lastUser = inviter[lastUser];
+            if(lastUser == address(0)){
+                break; 
+            }
             inviters[i] = lastUser;
         }
         return inviters;

@@ -100,6 +100,7 @@ contract P2EERC1155 is ERC1155, SafeOwnable {
         uint256[] memory _values,
         bytes memory _data
     ) public returns (uint256[] memory tokenIds) {
+        require(_types.length > 0 && _types.length == _values.length, "illegal type length");
         require(_initialSupply <= _maxSupply, "Initial supply cannot be more than max supply");
         require(_types.length > 0, "illegal type length");
         tokenIds = new uint[](_types.length);

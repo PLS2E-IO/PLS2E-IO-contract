@@ -9,6 +9,7 @@ import "../interfaces/IP2EFactory.sol";
 import "../libraries/P2ELibrary.sol";
 import "../interfaces/IP2EPair.sol";
 import '../interfaces/IOracle.sol';
+import '../token/TokenLocker.sol';
 import "../core/SafeOwnable.sol";
 import '../token/P2EToken.sol';
 import 'hardhat/console.sol';
@@ -17,6 +18,8 @@ contract SwapMining is SafeOwnable {
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
     EnumerableSet.AddressSet private _whitelist;
+
+    event NewTokenLocker(TokenLocker oldTokenLocker, TokenLocker newTokenLocker);
 
     // P2E tokens created per block
     uint256 public rewardPerBlock;
@@ -37,6 +40,13 @@ contract SwapMining is SafeOwnable {
     address public targetToken;
     // pair corresponding pid
     mapping(address => uint256) public pairOfPid;
+    TokenLocker public tokenLocker;
+
+    function setTokenLocker(TokenLocker _tokenLocker) external onlyOwner {
+        //require(_tokenLocker != address(0), "token locker address is zero"); 
+        emit NewTokenLocker(tokenLocker, _tokenLocker);
+        tokenLocker = _tokenLocker;
+    }
 
     constructor(
         P2EToken _rewardToken,
@@ -305,8 +315,13 @@ contract SwapMining is SafeOwnable {
         if (userSub <= 0) {
             return;
         }
-        console.log(userSub);
-        rewardToken.transfer(msg.sender, userSub);
+        //rewardToken.transfer(msg.sender, userSub);
+        if (address(tokenLocker) == address(0)) {
+            safeP2ETransfer(msg.sender, userSub);
+        } else {
+            rewardToken.approve(address(tokenLocker), userSub);
+            tokenLocker.addReceiver(msg.sender, userSub);
+        }
     }
 
     // Get rewards from users in the current pool
