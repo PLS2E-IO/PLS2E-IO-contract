@@ -175,6 +175,7 @@ contract PoolChef is SafeOwnable, ReentrancyGuard {
                 if (address(tokenLocker) == address(0)) {
                     safeP2ETransfer(msg.sender, pending);
                 } else {
+                    safeP2ETransfer(address(this), pending);
                     rewardToken.approve(address(tokenLocker), pending);
                     tokenLocker.addReceiver(msg.sender, pending);
                 }
@@ -204,6 +205,7 @@ contract PoolChef is SafeOwnable, ReentrancyGuard {
             if (address(tokenLocker) == address(0)) {
                 safeP2ETransfer(msg.sender, pending);
             } else {
+                safeP2ETransfer(address(this), pending);
                 rewardToken.approve(address(tokenLocker), pending);
                 tokenLocker.addReceiver(msg.sender, pending);
             }

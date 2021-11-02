@@ -8,6 +8,7 @@ import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
 import '@openzeppelin/contracts/math/SafeMath.sol';
 import '../interfaces/IP2EToken.sol';
 import '../core/SafeOwnable.sol';
+import 'hardhat/console.sol';
 
 contract TokenLocker is ERC20 {
     using SafeMath for uint256;
@@ -76,24 +77,26 @@ contract TokenLocker is ERC20 {
         bool firstUnlock = receiver.firstUnlock;
         uint pendingAmount = 0;
         while (true) {
-            if (firstUnlock) {
+            if (!firstUnlock) {
                 lastClaim = lastClaim + FIRST_LOCK_SECONDS;
+                firstUnlock = true;
             } else {
                 lastClaim = lastClaim + LOCK_PERIOD;
             }
-            if (current > lastClaim) {
-                if (receiver.totalReleaseAmount.sub(pendingAmount) > receiver.alreadyReleasedAmount) {
-                    pendingAmount = pendingAmount + receiver.totalReleaseAmount.div(LOCK_PERIOD_NUM);
+            if (current >= lastClaim) {
+                uint currentPending = receiver.totalReleaseAmount.div(LOCK_PERIOD_NUM);
+                if (receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount) > currentPending.add(pendingAmount)) {
+                    pendingAmount = pendingAmount + currentPending;
                 } else {
-                    pendingAmount = pendingAmount + receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount);
+                    pendingAmount = receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount);
                     break;
                 }
             } else {
                 break;
             }
         }
-        pendingAmount = pendingAmount + userPending[_receiver];
         uint remain = receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount).sub(pendingAmount);
+        pendingAmount = pendingAmount + userPending[_receiver];
         return (lastClaim, pendingAmount, remain);
     }
 
@@ -111,6 +114,9 @@ contract TokenLocker is ERC20 {
             nextReleaseAt = receiver.lastReleaseAt + FIRST_LOCK_SECONDS;
         } else {
             nextReleaseAt = receiver.lastReleaseAt + LOCK_PERIOD;
+        }
+        if (receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount) < nextReleaseAmount) {
+            nextReleaseAmount = receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount);
         }
         nextReleaseAmount = receiver.totalReleaseAmount.div(LOCK_PERIOD_NUM);
         alreadyReleaseAmount = receiver.alreadyReleasedAmount;
@@ -132,10 +138,10 @@ contract TokenLocker is ERC20 {
         receiver.lastReleaseAt = nextReleaseSeconds;
         receiver.alreadyReleasedAmount = receiver.alreadyReleasedAmount.add(nextReleaseAmount);
         totalLockAmount = totalLockAmount.sub(nextReleaseAmount);
-        userPending[_receiver] = nextReleaseAmount;
+        userPending[_receiver] = userPending[_receiver] + nextReleaseAmount;
         (uint nextNextReleaseSeconds, uint nextNextReleaseAmount, , ) = getReleaseInfo(_receiver);
         emit ReleaseToken(_receiver, nextReleaseAmount, nextNextReleaseSeconds, nextNextReleaseAmount);
-        return totalLockAmount;
+        return nextReleaseAmount;
     }
 
     function claim(address _receiver) external {
@@ -146,8 +152,8 @@ contract TokenLocker is ERC20 {
         }
         if (userPending[_receiver] > 0) {
             token.safeTransfer(_receiver, userPending[_receiver]);
-            userPending[_receiver] = 0;
             _burn(_receiver, userPending[_receiver]);
+            userPending[_receiver] = 0;
         }
     }
 }

@@ -7,7 +7,9 @@ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/math/SafeMath.sol';
 import '@openzeppelin/contracts/utils/Strings.sol';
 import '@openzeppelin/contracts/utils/Context.sol';
+import '../libraries/TransferHelper.sol';
 import '../interfaces/IP2EERC1155.sol';
+import '../interfaces/IWETH.sol';
 import '../core/SafeOwnable.sol';
 import 'hardhat/console.sol';
 import '../core/Random.sol';
@@ -23,11 +25,14 @@ contract Invite {
     uint public constant MAX_HEIGHT = 5;
 
     address public immutable rootInviter;
+    address public immutable WETH;
     mapping(address => address) inviter;
     mapping(address => mapping(IERC20 => uint256[])) inviterReward;
     mapping(IERC20 => uint) lastBalance;
 
-    constructor(address _rootInviter) {
+    constructor(address _WETH, address _rootInviter) {
+        require(_WETH != address(0), "WETH address is zero");
+        WETH = _WETH;
         rootInviter = _rootInviter;
         inviter[_rootInviter] = address(this);
         emit InviteUser(_rootInviter, address(this));
@@ -91,6 +96,16 @@ contract Invite {
         return userAmounts;
     }
 
+    function tokenTransfer(IERC20 _token, address _to, uint _amount) internal returns (uint) {
+        if (address(_token) == WETH) {
+            IWETH(address(_token)).withdraw(_amount);
+            TransferHelper.safeTransferETH(_to, _amount);
+        } else {
+            _token.safeTransfer(_to, _amount);
+        }
+        return _amount;
+    }
+
     function claim(address _user, IERC20[] memory _tokens) external {
         uint[] memory amounts = pending(_user, _tokens);
         for (uint i = 0; i < amounts.length; i ++) {
@@ -102,7 +117,7 @@ contract Invite {
             }
         }
         for (uint i = 0; i < amounts.length; i ++) {
-            _tokens[i].safeTransfer(_user, amounts[i]);
+            tokenTransfer(_tokens[i], _user, amounts[i]);
             emit ClaimReward(_user, _tokens[i], amounts[i]);
         }
     }

@@ -8,6 +8,7 @@ import '@openzeppelin/contracts/math/SafeMath.sol';
 import '../interfaces/IP2EToken.sol';
 import '../token/TokenLocker.sol';
 import '../core/SafeOwnable.sol';
+import 'hardhat/console.sol';
 
 contract P2EIco {
     using SafeMath for uint256;
@@ -57,7 +58,6 @@ contract P2EIco {
         uint sendTokenMisDecimal = uint(18).sub(sendToken.decimals());
         uint receiveTokenMisDecimal = uint(18).sub(ERC20(address(receiveToken)).decimals());
         uint receiveAmount = _amount.mul(uint(10) ** (sendTokenMisDecimal)).mul(PRICE_BASE).div(icoPrice).div(uint(10) ** (receiveTokenMisDecimal));
-
         require(remainRelease >= receiveAmount, "release amount is bigger than reaminRelease");
         totalReceived = totalReceived.add(_amount);
         remainRelease = remainRelease.sub(receiveAmount);
@@ -82,7 +82,10 @@ contract P2EIco {
     //response3: the total amount already released
     //response4: the remain amount for the receiver to release
     function getReleaseInfo(address _receiver) public view returns (uint256 nextReleaseAt, uint256 nextReleaseAmount, uint256 alreadyReleaseAmount, uint256 remainReleaseAmount) {
-        return tokenLocker.getReleaseInfo(_receiver);
+        if (false) {
+            alreadyReleaseAmount = 0;
+        }
+        (nextReleaseAt, nextReleaseAmount, remainReleaseAmount) = tokenLocker.pending(_receiver);
     }
 
     function withdraw(uint amount) external {

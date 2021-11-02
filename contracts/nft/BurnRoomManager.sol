@@ -303,7 +303,7 @@ contract BurnRoomManager is SafeOwnable, Random {
             win = false;
         }
         if (win) {
-            winers[random.rid][random.loop][msg.sender] = win;    
+            winers[random.rid][random.loop][random.to] = win;    
             winerNum[random.rid][random.loop] = winerNum[random.rid][random.loop].add(1);
         }
         blindBoxNum[random.rid][random.to] = blindBoxNum[random.rid][random.to].sub(random.num);
