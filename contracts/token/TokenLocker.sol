@@ -88,7 +88,7 @@ contract TokenLocker is ERC20 {
                 if (receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount) > currentPending.add(pendingAmount)) {
                     pendingAmount = pendingAmount + currentPending;
                 } else {
-                    pendingAmount = receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount);
+                    pendingAmount = pendingAmount + receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount);
                     break;
                 }
             } else {
@@ -115,9 +115,6 @@ contract TokenLocker is ERC20 {
         } else {
             nextReleaseAt = receiver.lastReleaseAt + LOCK_PERIOD;
         }
-        if (receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount) < nextReleaseAmount) {
-            nextReleaseAmount = receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount);
-        }
         nextReleaseAmount = receiver.totalReleaseAmount.div(LOCK_PERIOD_NUM);
         alreadyReleaseAmount = receiver.alreadyReleasedAmount;
         remainReleaseAmount = receiver.totalReleaseAmount.sub(receiver.alreadyReleasedAmount);
@@ -138,7 +135,7 @@ contract TokenLocker is ERC20 {
         receiver.lastReleaseAt = nextReleaseSeconds;
         receiver.alreadyReleasedAmount = receiver.alreadyReleasedAmount.add(nextReleaseAmount);
         totalLockAmount = totalLockAmount.sub(nextReleaseAmount);
-        userPending[_receiver] = userPending[_receiver] + nextReleaseAmount;
+        userPending[_receiver] = userPending[_receiver].add(nextReleaseAmount);
         (uint nextNextReleaseSeconds, uint nextNextReleaseAmount, , ) = getReleaseInfo(_receiver);
         emit ReleaseToken(_receiver, nextReleaseAmount, nextNextReleaseSeconds, nextNextReleaseAmount);
         return nextReleaseAmount;
@@ -151,9 +148,10 @@ contract TokenLocker is ERC20 {
             }
         }
         if (userPending[_receiver] > 0) {
-            token.safeTransfer(_receiver, userPending[_receiver]);
-            _burn(_receiver, userPending[_receiver]);
+            uint userPending = userPending[_receiver];
             userPending[_receiver] = 0;
+            _burn(_receiver, userPending[_receiver]);
+            token.safeTransfer(_receiver, userPending[_receiver]);
         }
     }
 }
