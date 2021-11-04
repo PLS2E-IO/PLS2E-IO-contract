@@ -148,10 +148,10 @@ contract TokenLocker is ERC20 {
             }
         }
         if (userPending[_receiver] > 0) {
-            uint userPending = userPending[_receiver];
+            uint _userPending = userPending[_receiver];
             userPending[_receiver] = 0;
-            _burn(_receiver, userPending[_receiver]);
-            token.safeTransfer(_receiver, userPending[_receiver]);
+            _burn(_receiver, _userPending);
+            token.safeTransfer(_receiver, _userPending);
         }
     }
 }
