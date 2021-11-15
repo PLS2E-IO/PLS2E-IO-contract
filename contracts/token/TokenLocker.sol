@@ -10,7 +10,7 @@ import '../interfaces/IP2EToken.sol';
 import '../core/SafeOwnable.sol';
 import 'hardhat/console.sol';
 
-contract TokenLocker is ERC20 {
+contract TokenLocker is ERC20, SafeOwnable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -35,8 +35,8 @@ contract TokenLocker is ERC20 {
     mapping(address => uint) public userPending;
 
     constructor(
-        string memory _name, string memory _symbol, IERC20 _token, uint256 _firstLockSeconds, uint256 _lockPeriod, uint256 _lockPeriodNum
-    ) ERC20(_name, _symbol) {
+        address _owner, string memory _name, string memory _symbol, IERC20 _token, uint256 _firstLockSeconds, uint256 _lockPeriod, uint256 _lockPeriodNum
+    ) ERC20(_name, _symbol) SafeOwnable(_owner) {
         require(address(_token) != address(0), "token address is zero");
         token = _token;
         FIRST_LOCK_SECONDS = _firstLockSeconds;

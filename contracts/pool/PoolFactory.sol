@@ -15,7 +15,7 @@ contract PoolFactory is SafeOwnable {
         return allPools.length;
     }
 
-    constructor() {
+    constructor() SafeOwnable(msg.sender) {
     }
 
     function deployPool(

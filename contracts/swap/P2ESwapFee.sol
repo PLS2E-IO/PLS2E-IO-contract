@@ -110,7 +110,7 @@ contract P2ESwapFee is SafeOwnable {
         _;
     }
 
-    constructor(IP2EFactory _factory, IP2ERouter _router, address _middleToken, address _destroyToken, address _ownerReceiver) {
+    constructor(IP2EFactory _factory, IP2ERouter _router, address _middleToken, address _destroyToken, address _ownerReceiver) SafeOwnable(msg.sender) {
         require(address(_factory) != address(0), "factory address is zero");
         factory = _factory;
         require(address(_router) != address(0), "router address is zero");

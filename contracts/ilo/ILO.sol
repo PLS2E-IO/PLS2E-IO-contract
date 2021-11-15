@@ -80,7 +80,7 @@ contract ILO is SafeOwnable {
         IERC20 _rewardToken,
         uint256 _startSeconds,
         uint256 _endSeconds
-    ) {
+    ) SafeOwnable(msg.sender) {
         rewardToken = _rewardToken;
         startSeconds = _startSeconds;
         emit NewStartSeconds(0, _startSeconds);

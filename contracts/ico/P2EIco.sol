@@ -30,7 +30,7 @@ contract P2EIco {
     uint256 public totalRelease;
 
     constructor(
-        ERC20 _sendToken, address _sendTokenReceiver, IP2EToken _receiveToken, uint _icoPrice, TokenLocker _tokenLocker, uint256 _totalAmount
+        ERC20 _sendToken, address _sendTokenReceiver, IP2EToken _receiveToken, uint _icoPrice, uint256 _totalAmount
     ) {
         require(address(_sendToken) != address(0), "ilelgal send token");
         sendToken = _sendToken;
@@ -42,9 +42,12 @@ contract P2EIco {
         require(address(_sendToken) != address(_receiveToken), "sendToken and receiveToken is the same");
         require(_icoPrice > 0, "illegal icoPrice");
         icoPrice = _icoPrice;
-        require(address(_tokenLocker) != address(0), "tokenLocker address is zero");
-        tokenLocker = _tokenLocker;
         remainRelease = totalAmount = _totalAmount;
+    }
+
+    function initTokenLocker(TokenLocker _tokenLocker) external {
+        require(address(tokenLocker) == address(0), "tokenLocker already setted");
+        tokenLocker = _tokenLocker;
     }
 
     function deposit(address _receiver, uint256 _amount) external {

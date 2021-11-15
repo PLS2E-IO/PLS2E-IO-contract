@@ -30,7 +30,7 @@ contract RoomExtention is SafeOwnable {
     mapping(uint256 => RoomInfo) public roomInfo;
     address public roomManager;
 
-    constructor(address _roomManager) {
+    constructor(address _roomManager) SafeOwnable(msg.sender) {
         roomManager = _roomManager;
     }
 

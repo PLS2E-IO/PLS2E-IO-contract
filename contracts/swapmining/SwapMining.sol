@@ -56,7 +56,7 @@ contract SwapMining is SafeOwnable {
         address _targetToken,
         uint256 _rewardPerBlock,
         uint256 _startBlock
-    ) {
+    ) SafeOwnable(msg.sender) {
         require(address(_rewardToken) != address(0), "illegal address");
         rewardToken = _rewardToken;
         require(address(_factory) != address(0), "illegal address");

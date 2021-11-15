@@ -151,7 +151,7 @@ contract GameRoomManager is SafeOwnable, Random {
         emit BuyBlindBox(_rid, address(this), _loop, 1, 0, 0, requestId);
     }
 
-    constructor(IInvite _invite, IP2EERC1155 _nftToken, address _receiver, address _rewardReceiver, address _linkAccessor) Random(_linkAccessor) {
+    constructor(IInvite _invite, IP2EERC1155 _nftToken, address _receiver, address _rewardReceiver, address _linkAccessor) Random(_linkAccessor) SafeOwnable(msg.sender) {
         require(address(_invite) != address(0), "invite address is zero");
         invite = _invite;
         require(address(_nftToken) != address(0), "nftToken is zero");

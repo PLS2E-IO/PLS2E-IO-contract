@@ -63,7 +63,7 @@ contract PoolChef is SafeOwnable, ReentrancyGuard {
         P2EBar _bar,
         uint256 _rewardPerBlock,
         uint256 _startBlock
-    ) {
+    ) SafeOwnable(msg.sender) {
         rewardToken = _rewardToken;
         bar = _bar;
         rewardPerBlock = _rewardPerBlock;

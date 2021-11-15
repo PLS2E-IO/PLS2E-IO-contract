@@ -65,7 +65,7 @@ contract MasterChef is SafeOwnable, ReentrancyGuard {
         P2EToken _rewardToken,
         uint256 _rewardPerBlock,
         uint256 _startBlock
-    ) {
+    ) SafeOwnable(msg.sender) {
         require(address(_rewardToken) != address(0), "illegal rewardToken");
         rewardToken = _rewardToken;
         rewardPerBlock = _rewardPerBlock;

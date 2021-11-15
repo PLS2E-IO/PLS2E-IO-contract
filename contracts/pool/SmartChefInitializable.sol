@@ -8,6 +8,7 @@ import '@openzeppelin/contracts/proxy/Initializable.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
 import '@openzeppelin/contracts/math/SafeMath.sol';
+import '../token/TokenLocker.sol';
 import '../core/SafeOwnable.sol';
 
 contract SmartChefInitializable is SafeOwnable, ReentrancyGuard, Initializable {
@@ -47,6 +48,8 @@ contract SmartChefInitializable is SafeOwnable, ReentrancyGuard, Initializable {
     // The staked token
     IERC20 public stakedToken;
 
+    TokenLocker public tokenLocker;
+
     // Info of each user that stakes tokens (stakedToken)
     mapping(address => UserInfo) public userInfo;
 
@@ -63,8 +66,14 @@ contract SmartChefInitializable is SafeOwnable, ReentrancyGuard, Initializable {
     event NewPoolLimit(uint256 poolLimitPerUser);
     event Withdraw(address indexed user, uint256 amount);
 
-    constructor() {
+    constructor() SafeOwnable(msg.sender) {
         SMART_CHEF_FACTORY = msg.sender;
+    }
+
+    function setTokenLocker(TokenLocker _tokenLocker) external onlyOwner {
+        //require(_tokenLocker != address(0), "token locker address is zero"); 
+        //emit NewTokenLocker(tokenLocker, _tokenLocker);
+        tokenLocker = _tokenLocker;
     }
 
     /*
@@ -127,7 +136,12 @@ contract SmartChefInitializable is SafeOwnable, ReentrancyGuard, Initializable {
         if (user.amount > 0) {
             uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
             if (pending > 0) {
-                rewardToken.safeTransfer(address(msg.sender), pending);
+                if (address(tokenLocker) == address(0) || rewardToken != tokenLocker.token()) {
+                    rewardToken.safeTransfer(address(msg.sender), pending);
+                } else {
+                    rewardToken.approve(address(tokenLocker), pending);
+                    tokenLocker.addReceiver(msg.sender, pending);
+                }
             }
         }
 
@@ -162,7 +176,13 @@ contract SmartChefInitializable is SafeOwnable, ReentrancyGuard, Initializable {
         }
 
         if (pending > 0) {
-            rewardToken.safeTransfer(address(msg.sender), pending);
+            //rewardToken.safeTransfer(address(msg.sender), pending);
+            if (address(tokenLocker) == address(0) || rewardToken != tokenLocker.token()) {
+                rewardToken.safeTransfer(address(msg.sender), pending);
+            } else {
+                rewardToken.approve(address(tokenLocker), pending);
+                tokenLocker.addReceiver(msg.sender, pending);
+            }
         }
 
         user.rewardDebt = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR);

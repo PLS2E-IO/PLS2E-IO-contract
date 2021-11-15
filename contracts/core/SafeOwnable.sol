@@ -15,10 +15,12 @@ abstract contract SafeOwnable is Context {
     event ChangePendingOwner(address indexed previousPendingOwner, address indexed newPendingOwner);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    constructor () {
-        address msgSender = _msgSender();
-        _owner = msgSender;
-        emit OwnershipTransferred(address(0), msgSender);
+    constructor (address _ownerAddress) {
+        if (_ownerAddress == address(0)) {
+            _ownerAddress = _msgSender();
+        }
+        _owner = _ownerAddress;
+        emit OwnershipTransferred(address(0), _ownerAddress);
     }
 
     function owner() public view virtual returns (address) {

@@ -31,7 +31,7 @@ contract P2ERouter is IP2ERouter, SafeOwnable {
         swapMining = _swapMining;
     }
 
-    constructor(address _factory, address _WETH) {
+    constructor(address _factory, address _WETH) SafeOwnable(msg.sender) {
         require(_factory != address(0), "illegal address");
         require(_WETH != address(0), "illegal WETH");
         factory = _factory;

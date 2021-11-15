@@ -13,7 +13,7 @@ contract P2EToken is ERC20Capped, SafeOwnable {
     uint256 public constant MAX_SUPPLY = 10 * 10 ** 8 * 10 ** 18;
     mapping(address => uint) public minters;
 
-    constructor() ERC20Capped(MAX_SUPPLY) ERC20("P2E Token", "P2E") {
+    constructor() ERC20Capped(MAX_SUPPLY) ERC20("P2E Token", "P2E") SafeOwnable(msg.sender) {
         addMinter(msg.sender, uint(-1));
     }
 

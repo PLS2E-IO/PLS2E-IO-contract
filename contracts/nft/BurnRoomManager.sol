@@ -147,7 +147,7 @@ contract BurnRoomManager is SafeOwnable, Random {
         return nftIDs[_rid][_loop];
     }
 
-    constructor(address _WETH, IInvite _invite, IP2EERC1155 _nftToken, address _feeReceiver, address _rewardReceiver, address _linkAccessor) Random(_linkAccessor) {
+    constructor(address _WETH, IInvite _invite, IP2EERC1155 _nftToken, address _feeReceiver, address _rewardReceiver, address _linkAccessor) Random(_linkAccessor) SafeOwnable(msg.sender) {
         require(_WETH != address(0), "WETH is zero");
         WETH = _WETH;
         require(address(_invite) != address(0), "invite address is zero");

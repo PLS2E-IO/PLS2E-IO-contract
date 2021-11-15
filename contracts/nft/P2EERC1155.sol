@@ -36,7 +36,7 @@ contract P2EERC1155 is ERC1155, SafeOwnable {
         disableTransfer[_id] = false;
     }
 
-    constructor(string memory _uri, string memory name_, string memory symbol_) ERC1155(_uri) {
+    constructor(string memory _uri, string memory name_, string memory symbol_) ERC1155(_uri) SafeOwnable(msg.sender) {
         name = name_;
         symbol = symbol_;
         baseMetadataURI = _uri;
