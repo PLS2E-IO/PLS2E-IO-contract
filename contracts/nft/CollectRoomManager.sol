@@ -115,6 +115,9 @@ contract CollectRoomManager is SafeOwnable, Random {
     }
 
     function tokenTransfer(IERC20 _token, address _to, uint _amount) internal returns (uint) {
+        if (_amount == 0) {
+            return 0;
+        }
         if (address(_token) == WETH) {
             IWETH(address(_token)).withdraw(_amount);
             TransferHelper.safeTransferETH(_to, _amount);
@@ -211,7 +214,7 @@ contract CollectRoomManager is SafeOwnable, Random {
             endSeconds: _endSeconds,
             rewardPool: 0,
             valueFee: _valueFee,
-            maxOpenNum: 1
+            maxOpenNum: 5
         }));
         uint rid = roomInfo.length - 1;
         emit NewCollectRoom(rid, _rewardToken, _rewardAmount, _startSeconds, _endSeconds);
@@ -288,7 +291,7 @@ contract CollectRoomManager is SafeOwnable, Random {
         });
         blindBoxNum[_rid][_to] = blindBoxNum[_rid][_to].add(_num);
 
-        emit BuyBlindBox(_rid, _to, _token, _num, payAmount, payFee, requestId);
+        emit BuyBlindBox(_rid, _to, _token, _num, payAmount.add(totalInviterAmount.sub(remainAmount)), payFee, requestId);
     }
 
     function finishRandom(bytes32 _requestId) internal override {
@@ -369,5 +372,9 @@ contract CollectRoomManager is SafeOwnable, Random {
         room.rewardPool = room.rewardPool.sub(amount);
         tokenTransfer(room.rewardToken, rewardReceiver, amount);
         emit RewardPoolWithdraw(rid, rewardReceiver, room.rewardToken, amount);
+    }
+
+    receive() external payable {
+        assert(msg.sender == WETH); // only accept ETH via fallback from the WETH contract
     }
 }

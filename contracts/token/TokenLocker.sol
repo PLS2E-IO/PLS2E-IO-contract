@@ -46,7 +46,7 @@ contract TokenLocker is ERC20, SafeOwnable {
 
     uint public constant MAX_CLAIM_NUM = 100;
 
-    function addReceiver(address _receiver, uint256 _amount) external {
+    function addReceiver(address _receiver, uint256 _amount) external onlyOwner {
         for (uint i = 0; i < MAX_CLAIM_NUM; i ++) {
             if (claimInternal(_receiver) == 0) {
                 break;

@@ -282,7 +282,7 @@ contract NftFarm is SafeOwnable, ReentrancyGuard, ERC1155, ERC1155Holder {
                 totalValues = totalValues.add(value);
                 if (pool.nftType == NftType.ERC721) {
                     require(_amounts[i] == 1, "NFT721 CAN ONLY TRANSFER ONE BY ONE");
-                    IERC721(pool.nftContract).safeTransferFrom(msg.sender, address(this), _ids[i]);
+                    IERC721(pool.nftContract).safeTransferFrom(address(this), msg.sender, _ids[i]);
                 }
                 innerNftIds[i] = nftIds[pool.nftContract][_ids[i]];
                 require(innerNftIds[i] != 0, "nftContract Id Not exists");
@@ -309,16 +309,18 @@ contract NftFarm is SafeOwnable, ReentrancyGuard, ERC1155, ERC1155Holder {
         if (_ids.length > 0) {
             address[] memory accounts = new address[](_ids.length);
             uint[] memory innerNftIds = new uint[](_ids.length);
+            uint[] memory amounts = new uint[](_ids.length);
             for (uint i = 0; i < _ids.length; i ++) {
                 if (pool.nftType == NftType.ERC721) {
-                    IERC721(pool.nftContract).safeTransferFrom(msg.sender, address(this), _ids[i]);
+                    IERC721(pool.nftContract).safeTransferFrom(address(this), msg.sender, _ids[i]);
+                    amounts[i] = 1;
                 }
                 innerNftIds[i] = nftIds[pool.nftContract][_ids[i]];
                 require(innerNftIds[i] != 0, "nftContract Id Not exists");
                 accounts[i] = msg.sender;
             }
-            uint[] memory amounts = IERC1155(pool.nftContract).balanceOfBatch(accounts, innerNftIds);
             if (pool.nftType == NftType.ERC1155) {
+                amounts = IERC1155(pool.nftContract).balanceOfBatch(accounts, innerNftIds);
                 IERC1155(pool.nftContract).safeBatchTransferFrom(address(this), msg.sender, _ids, amounts, new bytes(0));
             }
             _burnBatch(msg.sender, innerNftIds, amounts);

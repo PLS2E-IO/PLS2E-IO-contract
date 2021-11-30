@@ -97,6 +97,9 @@ contract Invite {
     }
 
     function tokenTransfer(IERC20 _token, address _to, uint _amount) internal returns (uint) {
+        if (_amount == 0) {
+            return 0;
+        }
         if (address(_token) == WETH) {
             IWETH(address(_token)).withdraw(_amount);
             TransferHelper.safeTransferETH(_to, _amount);
@@ -120,5 +123,9 @@ contract Invite {
             tokenTransfer(_tokens[i], _user, amounts[i]);
             emit ClaimReward(_user, _tokens[i], amounts[i]);
         }
+    }
+
+    receive() external payable {
+        assert(msg.sender == WETH); // only accept ETH via fallback from the WETH contract
     }
 }
